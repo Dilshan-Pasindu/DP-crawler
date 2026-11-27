@@ -1,0 +1,36 @@
+name: Phase 3 Windows Compile and Non-Interactive CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  windows-build-and-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Build Native Windows FlaUI Helper
+        run: dotnet build native/windows-helper/WindowsHelper.csproj -c Release
+      - name: Build Win32, WinForms, and WPF Fixtures
+        run: |
+          dotnet build fixtures/windows/Win32Fixture/Win32Fixture.csproj -c Release
+          dotnet build fixtures/windows/WinFormsFixture/WinFormsFixture.csproj -c Release
+          dotnet build fixtures/windows/WpfFixture/WpfFixture.csproj -c Release
+      - name: Run Unit, Transport, Safety, and Contract Tests (Non-Interactive)
+        run: pnpm exec vitest run tests/unit tests/architecture tests/safety/safety.test.ts tests/safety/windows-safety.test.ts tests/contract/adapter.contract.test.ts tests/determinism/determinism.test.ts
+      - name: Probe Helper Desktop Session Availability
+        run: |
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientProtocolVersion":"1.0.0"}}' | dotnet run --project native/windows-helper/WindowsHelper.csproj -c Release --no-build

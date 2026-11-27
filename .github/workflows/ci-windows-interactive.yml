@@ -1,0 +1,36 @@
+name: Phase 3 Windows Interactive Desktop Validation
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-interactive-desktop-session
+  cancel-in-progress: false
+
+jobs:
+  interactive-desktop-validation:
+    runs-on: [self-hosted, windows, interactive]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: pnpm install --frozen-lockfile
+      - run: dotnet build native/windows-helper/WindowsHelper.csproj -c Release
+      - run: |
+          dotnet build fixtures/windows/Win32Fixture/Win32Fixture.csproj -c Release
+          dotnet build fixtures/windows/WinFormsFixture/WinFormsFixture.csproj -c Release
+          dotnet build fixtures/windows/WpfFixture/WpfFixture.csproj -c Release
+      - name: Run Live Interactive Windows Integration Suite
+        env:
+          DPCRAWL_RUN_WINDOWS_INTERACTIVE: "1"
+        run: pnpm exec vitest run tests/integration/windows.integration.test.ts
+      - name: Optional WinUI 3 Build & Validation (When Windows App SDK Provisioned)
+        if: env.DPCRAWL_ENABLE_WINUI3 == '1'
+        run: |
+          dotnet build fixtures/windows/WinUi3Fixture/WinUi3Fixture.csproj -c Release -p:Platform=x64
