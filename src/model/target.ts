@@ -96,6 +96,17 @@ export interface TargetEvidenceConfig {
 }
 
 /**
+ * Windows UI Automation adapter-specific options.
+ */
+export interface WindowsTargetConfig {
+  readonly uiaBackend: "uia3" | "uia2";
+  readonly helperCommand?: string;
+  readonly helperArgs?: readonly string[];
+  readonly operationTimeoutMs?: number;
+  readonly startCommand?: string;
+}
+
+/**
  * Target application descriptor establishing platform, identity, and boundaries.
  */
 export interface TargetDescriptor {
@@ -112,4 +123,5 @@ export interface TargetDescriptor {
   readonly safety: TargetSafetyConfig;
   readonly auth?: TargetAuthConfig;
   readonly evidence?: TargetEvidenceConfig;
+  readonly windows?: WindowsTargetConfig;
 }

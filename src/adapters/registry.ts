@@ -1,5 +1,6 @@
 import type { AdapterKind, PlatformAdapter } from "../model/index.js";
 import { PlaywrightWebAdapter } from "./web/playwright.js";
+import { WindowsUiaAdapter } from "./windows/uia.js";
 
 /**
  * Registry decoupling the shared brain and CLI from concrete platform adapters.
@@ -36,5 +37,6 @@ export class AdapterRegistry {
 export function createDefaultRegistry(): AdapterRegistry {
   const registry = new AdapterRegistry();
   registry.register(new PlaywrightWebAdapter());
+  registry.register(new WindowsUiaAdapter());
   return registry;
 }

@@ -32,6 +32,10 @@ const TargetSchema = z.object({
   buildId: z.string().min(1).optional(),
   cdpEndpoint: z.string().url().optional(),
   startCommand: z.string().min(1).optional(),
+  uiaBackend: z.enum(["uia3", "uia2"]).default("uia3"),
+  helperCommand: z.string().min(1).optional(),
+  helperArgs: z.array(z.string()).optional(),
+  operationTimeoutMs: z.number().int().positive().max(60_000).optional(),
 });
 
 const LimitsSchema = z
@@ -200,6 +204,25 @@ export function profileToTargetDescriptor(profileName: string, profile: ProfileC
       screenshotMasks: profile.evidence.screenshotMasks,
       trace: profile.evidence.trace,
     },
+    ...(profile.target.platform === "windows"
+      ? {
+          windows: {
+            uiaBackend: profile.target.uiaBackend,
+            ...(profile.target.helperCommand !== undefined
+              ? { helperCommand: profile.target.helperCommand }
+              : {}),
+            ...(profile.target.helperArgs !== undefined
+              ? { helperArgs: profile.target.helperArgs }
+              : {}),
+            ...(profile.target.operationTimeoutMs !== undefined
+              ? { operationTimeoutMs: profile.target.operationTimeoutMs }
+              : {}),
+            ...(profile.target.startCommand !== undefined
+              ? { startCommand: profile.target.startCommand }
+              : {}),
+          },
+        }
+      : {}),
     safety: {
       confirmRemote: profile.safety.confirmRemote,
       testDataConfirmed: profile.safety.testDataConfirmed,
