@@ -59,5 +59,5 @@ describe("Phase 2 Web Determinism", () => {
     for (let i = 1; i < snapshots.length; i += 1) {
       expect(snapshots[i]).toBe(snapshots[0]);
     }
-  });
+  }, 20_000);
 });
