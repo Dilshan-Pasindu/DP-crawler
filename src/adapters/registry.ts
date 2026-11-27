@@ -1,4 +1,5 @@
 import type { AdapterKind, PlatformAdapter } from "../model/index.js";
+import { PlaywrightWebAdapter } from "./web/playwright.js";
 
 /**
  * Registry decoupling the shared brain and CLI from concrete platform adapters.
@@ -30,9 +31,10 @@ export class AdapterRegistry {
 }
 
 /**
- * Creates a default AdapterRegistry. Platform adapters are registered in Phases 2–6
- * as each platform reaches validated support.
+ * Creates the default AdapterRegistry containing validated platform adapters.
  */
 export function createDefaultRegistry(): AdapterRegistry {
-  return new AdapterRegistry();
+  const registry = new AdapterRegistry();
+  registry.register(new PlaywrightWebAdapter());
+  return registry;
 }

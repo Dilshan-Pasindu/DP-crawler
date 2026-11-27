@@ -70,7 +70,10 @@ const AuthSchema = z
   .object({
     mode: z.enum(["none", "replay", "api-token", "interactive"]).default("none"),
     storageStatePath: z.string().min(1).optional(),
+    sessionStoragePath: z.string().min(1).optional(),
     tokenEnvVar: z.string().min(1).optional(),
+    loginUrl: z.string().url().optional(),
+    expectedAuthenticatedSelector: z.string().min(1).optional(),
   })
   .default({});
 
@@ -179,6 +182,24 @@ export function profileToTargetDescriptor(profileName: string, profile: ProfileC
       : {}),
     ...(profile.target.buildId !== undefined ? { buildId: profile.target.buildId } : {}),
     isRemote: isRemoteEntry(entryPoint),
+    auth: {
+      mode: profile.auth.mode,
+      ...(profile.auth.storageStatePath !== undefined ? { storageStatePath: profile.auth.storageStatePath } : {}),
+      ...(profile.auth.sessionStoragePath !== undefined
+        ? { sessionStoragePath: profile.auth.sessionStoragePath }
+        : {}),
+      ...(profile.auth.tokenEnvVar !== undefined ? { tokenEnvVar: profile.auth.tokenEnvVar } : {}),
+      ...(profile.auth.loginUrl !== undefined ? { loginUrl: profile.auth.loginUrl } : {}),
+      ...(profile.auth.expectedAuthenticatedSelector !== undefined
+        ? { expectedAuthenticatedSelector: profile.auth.expectedAuthenticatedSelector }
+        : {}),
+    },
+    evidence: {
+      outputDir: profile.evidence.outputDir,
+      screenshots: profile.evidence.screenshots,
+      screenshotMasks: profile.evidence.screenshotMasks,
+      trace: profile.evidence.trace,
+    },
     safety: {
       confirmRemote: profile.safety.confirmRemote,
       testDataConfirmed: profile.safety.testDataConfirmed,
