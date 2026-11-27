@@ -2,7 +2,8 @@ import type { CrawlReport, ElementOutcomeRecord, ErrorRecord, Finding } from "..
 
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const EMAIL_PATTERN = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const PHONE_PATTERN = /\+?\d[\d\s().-]{7,}\d/g;
+// Match phone numbers while avoiding IPv4 addresses (e.g. 127.0.0.1)
+const PHONE_PATTERN = /\b(?!\d{1,3}(?:\.\d{1,3}){3}\b)(?:\+\d[\d\s()-]{7,}\d|\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}|\d{3}[\s-]\d{3}[\s-]\d{4}|\d{10,15})\b/g;
 const BEARER_PATTERN = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 const KV_SECRET_PATTERN =
   /\b(password|passwd|pwd|secret|token|api[_-]?key|auth[_-]?token|cookie|set-cookie|authorization)\s*([:=])\s*([^\s,;]+)/gi;

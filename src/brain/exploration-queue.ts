@@ -39,6 +39,7 @@ export class ExplorationQueue {
 
   /**
    * Enqueues an item if within depth bounds and not previously queued for this element/action.
+   * Upgrades an unvisited queued item if rediscovery reveals it became visible and enabled.
    */
   enqueue(item: QueueItem): boolean {
     if (item.depth > this.limits.maxDepth) {
@@ -46,6 +47,17 @@ export class ExplorationQueue {
     }
     const dedupKey = `${item.node.key}::${item.action.type}`;
     if (this.seenKeys.has(dedupKey)) {
+      const pendingIndex = this.items.findIndex(
+        (existing) => `${existing.node.key}::${existing.action.type}` === dedupKey,
+      );
+      if (pendingIndex >= 0) {
+        const existing = this.items[pendingIndex];
+        const wasUnavailable = existing !== undefined && (!existing.node.visible || !existing.node.enabled);
+        if (wasUnavailable && item.node.visible && item.node.enabled) {
+          this.items[pendingIndex] = item;
+          return true;
+        }
+      }
       return false;
     }
     this.seenKeys.add(dedupKey);

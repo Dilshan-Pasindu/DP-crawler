@@ -72,6 +72,30 @@ export interface TargetSafetyConfig {
 }
 
 /**
+ * Authentication configuration passed to an adapter session.
+ * Never embeds raw credentials.
+ */
+export interface TargetAuthConfig {
+  readonly mode: "none" | "replay" | "api-token" | "interactive";
+  readonly storageStatePath?: string;
+  readonly sessionStoragePath?: string;
+  readonly tokenEnvVar?: string;
+  readonly loginUrl?: string;
+  readonly expectedAuthenticatedSelector?: string;
+}
+
+/**
+ * Evidence and capture options for a target session.
+ */
+export interface TargetEvidenceConfig {
+  readonly outputDir: string;
+  readonly runId?: string;
+  readonly screenshots: boolean;
+  readonly screenshotMasks: readonly string[];
+  readonly trace: "off" | "on-failure" | "on";
+}
+
+/**
  * Target application descriptor establishing platform, identity, and boundaries.
  */
 export interface TargetDescriptor {
@@ -83,6 +107,9 @@ export interface TargetDescriptor {
   readonly allowedOrigins: readonly string[];
   readonly processIdentity?: string;
   readonly buildId?: string;
+  readonly executablePath?: string;
   readonly isRemote: boolean;
   readonly safety: TargetSafetyConfig;
+  readonly auth?: TargetAuthConfig;
+  readonly evidence?: TargetEvidenceConfig;
 }

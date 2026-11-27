@@ -30,6 +30,9 @@ export interface ErrorRecord {
   readonly category: string;
   readonly message: string;
   readonly source: ErrorSource;
+  readonly initiator?: "page" | "crawler" | "background" | "third-party";
+  readonly blockedBy?: "safety-policy";
+  readonly blocked?: boolean;
   readonly statusCode?: number;
   readonly origin?: string;
   readonly expected?: boolean;

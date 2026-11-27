@@ -35,6 +35,12 @@ export function classifyOutcome(
   }
 
   if (!observation.changeDetected && !observation.changeCorrelated) {
+    const blockedByNetworkGuard = observation.signals.some(
+      (s) => s.kind === "network-blocked" && s.error?.blocked === true,
+    );
+    if (blockedByNetworkGuard) {
+      return { outcome: "BLOCKED", reason: "Operation blocked by network safety guard" };
+    }
     return { outcome: "DEAD", reason: "No meaningful reaction detected after interaction" };
   }
 

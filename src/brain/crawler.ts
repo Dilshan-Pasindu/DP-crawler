@@ -1,5 +1,6 @@
 import {
   describeAction,
+  RunBlockedError,
   type AdapterSession,
   type CompletionStatus,
   type CrawlReport,
@@ -216,7 +217,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
   const runId = clock.generateRunId();
   const maxDurationMs = options.limits.maxRunMinutes * 60_000;
 
-  const session = await options.adapter.openSession(options.target);
+  let session: AdapterSession | null = null;
   const coverage = new CoverageTracker();
   const outcomes: ElementOutcomeRecord[] = [];
   const findings: Finding[] = [];
@@ -227,10 +228,53 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
 
   let completionStatus: CompletionStatus = "COMPLETED";
   let completionReason: string | undefined;
+  let safetyCoverage = evaluateSafetyCoverage([]);
+  let adapterInfo = options.adapter.info;
 
   try {
-    const protections = await session.getSafetyCoverage();
-    const safetyCoverage = evaluateSafetyCoverage(protections);
+    try {
+      session = await options.adapter.openSession(options.target);
+    } catch (err) {
+      if (err instanceof RunBlockedError) {
+        completionStatus = "RUN_BLOCKED";
+        completionReason = err.message;
+        const finishedMs = clock.nowMs();
+        const finishedAt = clock.isoNow();
+        return redactCrawlReport({
+          schemaVersion: REPORT_SCHEMA_VERSION,
+          toolVersion: TOOL_VERSION,
+          adapter: adapterInfo,
+          platform: options.target.platform,
+          ...(options.target.buildId !== undefined ? { applicationBuildId: options.target.buildId } : {}),
+          configHash: options.configHash,
+          profile: options.profile,
+          targetId: options.target.id,
+          targetEntryPoint: options.target.entryPoint,
+          verificationLevel: options.target.safety.verificationLevel,
+          safetyCoverage,
+          completionStatus,
+          completionReason,
+          coverage: coverage.buildReport(),
+          elementOutcomes: outcomes,
+          findings,
+          attributedErrors: allErrors,
+          evidenceReferences: [],
+          limitations,
+          operational: {
+            runId,
+            startedAt,
+            finishedAt,
+            durationMs: Math.max(0, finishedMs - startedMs),
+          },
+        });
+      }
+      throw err;
+    }
+
+    adapterInfo = session.adapterInfo;
+    const activeSession = session;
+    const protections = await activeSession.getSafetyCoverage();
+    safetyCoverage = evaluateSafetyCoverage(protections);
     if (safetyCoverage.unavailableProtections.length > 0) {
       limitations.push(
         `Unavailable safety protections: ${safetyCoverage.unavailableProtections.join(", ")}`,
@@ -240,9 +284,9 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
     if (!safetyCoverage.fullCoverage) {
       completionStatus = "RUN_BLOCKED";
       completionReason = `Missing required safety protections: ${safetyCoverage.missingRequiredProtections.join(", ")}`;
-    } else if (!session.adapterInfo.capabilities.discovery) {
+    } else if (!activeSession.adapterInfo.capabilities.discovery) {
       completionStatus = "RUN_BLOCKED";
-      completionReason = `Adapter "${session.adapterInfo.kind}" does not support UI discovery`;
+      completionReason = `Adapter "${activeSession.adapterInfo.kind}" does not support UI discovery`;
     } else {
       const queue = new ExplorationQueue({
         maxDepth: options.limits.maxDepth,
@@ -255,7 +299,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
         depth: number,
         path: readonly string[],
         isRediscovery: boolean,
-      ): void => {
+      ): boolean => {
         const flat = flattenNodes(snapshotNodes);
         const fingerprint = fingerprintState(location, flat);
         const withinRediscoveryLimit = queue.recordStateDiscovery(fingerprint);
@@ -265,25 +309,32 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
           isRediscovery,
         );
         if (!withinRediscoveryLimit) {
-          return;
+          return false;
         }
+        let enqueuedAny = false;
         for (const node of flat) {
           if (!node.interactive) {
             continue;
           }
-          queue.enqueue({
-            node,
-            action: selectPrimaryAction(node),
-            depth,
-            path,
-            stateFingerprint: fingerprint,
-          });
+          if (
+            queue.enqueue({
+              node,
+              action: selectPrimaryAction(node),
+              depth,
+              path,
+              stateFingerprint: fingerprint,
+            })
+          ) {
+            enqueuedAny = true;
+          }
         }
+        return enqueuedAny;
       };
 
-      const initialSnapshot = await session.discover();
+      const initialSnapshot = await activeSession.discover();
       if (initialSnapshot.scrollLimitReached === true) {
         coverage.markScrollLimitReached();
+        limitations.push("Exploration incomplete: scroll limit reached during discovery");
       }
       enqueueSnapshot(initialSnapshot.nodes, initialSnapshot.location, 0, [initialSnapshot.location], false);
 
@@ -308,7 +359,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
           target: options.target,
           node: item.node,
           action: item.action,
-          capabilities: session.adapterInfo.capabilities,
+          capabilities: activeSession.adapterInfo.capabilities,
           ...(options.activeProcessIdentity !== undefined
             ? { activeProcessIdentity: options.activeProcessIdentity }
             : {}),
@@ -334,7 +385,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
 
         interactionsUsed += 1;
         const retryResult = await executeWithRetry({
-          session,
+          session: activeSession,
           node: item.node,
           action: item.action,
           maxRetries: options.limits.maxElementRetries,
@@ -351,9 +402,9 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
         if (
           (classified.outcome === "FAIL" || classified.outcome === "OBSCURED") &&
           evidenceRef === undefined &&
-          session.adapterInfo.capabilities.screenshots
+          activeSession.adapterInfo.capabilities.screenshots
         ) {
-          const captured = await session.captureScreenshot(item.node.key);
+          const captured = await activeSession.captureScreenshot(item.node.key);
           if (captured !== null) {
             evidenceRef = captured;
           }
@@ -424,12 +475,14 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
         }
 
         // Rediscover if meaningful state/navigation reaction occurred
+        let revealedNewQueueItems = false;
         if (observation.changeDetected && item.depth < options.limits.maxDepth) {
-          const nextSnapshot = await session.discover();
+          const nextSnapshot = await activeSession.discover();
           if (nextSnapshot.scrollLimitReached === true) {
             coverage.markScrollLimitReached();
+            limitations.push("Exploration incomplete: scroll limit reached during rediscovery");
           }
-          enqueueSnapshot(
+          revealedNewQueueItems = enqueueSnapshot(
             nextSnapshot.nodes,
             nextSnapshot.location,
             item.depth + 1,
@@ -438,9 +491,13 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
           );
         }
 
-        // Restore state between interactions when supported and reaction changed location/state
-        if (observation.changeDetected && session.adapterInfo.capabilities.stateRestore) {
-          const restored = await safeRestoreState(session);
+        // Restore state between interactions only when not immediately exploring newly revealed child items
+        if (
+          observation.changeDetected &&
+          !revealedNewQueueItems &&
+          activeSession.adapterInfo.capabilities.stateRestore
+        ) {
+          const restored = await safeRestoreState(activeSession);
           if (!restored.ok) {
             const restoreObs = emptyObservation(restored.reason ?? "State restore failed");
             const restoreRec: ElementOutcomeRecord = {
@@ -506,7 +563,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
     const report: CrawlReport = {
       schemaVersion: REPORT_SCHEMA_VERSION,
       toolVersion: TOOL_VERSION,
-      adapter: session.adapterInfo,
+      adapter: adapterInfo,
       platform: options.target.platform,
       ...(options.target.buildId !== undefined ? { applicationBuildId: options.target.buildId } : {}),
       configHash: options.configHash,
@@ -522,7 +579,7 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
       findings: baselineComparison.findings,
       attributedErrors: allErrors,
       evidenceReferences: [...evidenceRefs],
-      limitations,
+      limitations: [...new Set(limitations)],
       operational: {
         runId,
         startedAt,
@@ -533,6 +590,8 @@ export async function runCrawl(options: CrawlOptions): Promise<CrawlReport> {
 
     return redactCrawlReport(report);
   } finally {
-    await session.dispose();
+    if (session !== null) {
+      await session.dispose();
+    }
   }
 }

@@ -24,6 +24,18 @@ export interface SafetyCoverageReport {
 }
 
 /**
+ * Bounded scroll progress recorded during discovery.
+ */
+export interface ScrollDiscoveryState {
+  readonly containerId: string;
+  readonly scrollAttempts: number;
+  readonly newNodeCount: number;
+  readonly lastStateFingerprint: string;
+  readonly scrollLimitReached: boolean;
+  readonly noNewNodesStreak: number;
+}
+
+/**
  * Lightweight, platform-neutral snapshot of the current UI state.
  */
 export interface StateSnapshot {
@@ -31,6 +43,7 @@ export interface StateSnapshot {
   readonly stateHash: string;
   readonly nodes: readonly UniversalNode[];
   readonly scrollLimitReached?: boolean;
+  readonly scrollStates?: readonly ScrollDiscoveryState[];
 }
 
 /**
@@ -41,9 +54,23 @@ export interface InteractionExecutionResult {
   readonly succeeded: boolean;
   readonly obscured: boolean;
   readonly unstable: boolean;
+  readonly dispatchMayHaveHappened?: boolean;
   readonly unsupportedReason?: string;
   readonly signals: readonly SignalEvent[];
   readonly evidenceRef?: string;
+}
+
+/**
+ * Typed error raised when a session cannot safely start or continue (e.g. expired auth).
+ */
+export class RunBlockedError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "RunBlockedError";
+    this.code = code;
+  }
 }
 
 /**
