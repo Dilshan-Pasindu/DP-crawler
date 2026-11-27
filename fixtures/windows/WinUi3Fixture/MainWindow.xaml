@@ -1,0 +1,68 @@
+<Window
+    x:Class="WinUi3Fixture.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="DP Crawler WinUI 3 Fixture">
+  <Grid RowDefinitions="Auto,*">
+    <!-- MenuBar & Context Menu -->
+    <MenuBar Grid.Row="0">
+      <MenuBarItem Title="Actions">
+        <MenuFlyoutItem x:Name="MenuInspectItem" AutomationProperties.AutomationId="winui-menu-inspect" Text="Inspect Status" Click="OnMenuInspectClick" />
+      </MenuBarItem>
+    </MenuBar>
+
+    <!-- NavigationView + Scrollable Nested Content -->
+    <NavigationView Grid.Row="1" x:Name="NavView" AutomationProperties.AutomationId="winui-nav" IsBackButtonVisible="Collapsed">
+      <NavigationView.MenuItems>
+        <NavigationViewItem Content="General" AutomationProperties.AutomationId="winui-nav-general" />
+        <NavigationViewItem Content="Settings" AutomationProperties.AutomationId="winui-nav-settings" />
+      </NavigationView.MenuItems>
+
+      <ScrollViewer AutomationProperties.AutomationId="winui-scroll">
+        <StackPanel Spacing="10" Padding="16">
+          <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="winui-status" Text="idle" />
+
+          <!-- Standard Buttons & Text Input -->
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="SafeBtn" AutomationProperties.AutomationId="winui-safe-btn" Content="View Summary" Click="OnSafeClick">
+              <Button.ContextFlyout>
+                <MenuFlyout>
+                  <MenuFlyoutItem Text="Context Inspect" Click="OnContextClick" />
+                </MenuFlyout>
+              </Button.ContextFlyout>
+            </Button>
+            <Button x:Name="DeleteBtn" AutomationProperties.AutomationId="winui-delete-btn" Content="Delete All" Click="OnDeleteClick" />
+            <Button x:Name="DialogBtn" AutomationProperties.AutomationId="winui-dialog-btn" Content="Open Modal" Click="OnOpenDialogClick" />
+          </StackPanel>
+
+          <TextBox x:Name="NotesBox" AutomationProperties.AutomationId="winui-textbox" Header="Notes" PlaceholderText="Enter safe note" />
+
+          <!-- CheckBox & ToggleSwitch -->
+          <CheckBox x:Name="ConfirmBox" AutomationProperties.AutomationId="winui-checkbox" Content="Read-Only Preview" />
+          <ToggleSwitch x:Name="FeatureToggle" AutomationProperties.AutomationId="winui-toggle" Header="Diagnostics" />
+
+          <!-- ComboBox & Selection List -->
+          <ComboBox x:Name="ModeCombo" AutomationProperties.AutomationId="winui-combobox" Header="Mode" SelectedIndex="0">
+            <ComboBoxItem Content="Inspect" />
+            <ComboBoxItem Content="Verify" />
+          </ComboBox>
+
+          <ListView x:Name="ItemsList" AutomationProperties.AutomationId="winui-listview" Height="110">
+            <x:String>Item Alpha</x:String>
+            <x:String>Item Beta</x:String>
+          </ListView>
+
+          <!-- Disabled, Hidden, and Missing Accessibility Name Controls -->
+          <Button x:Name="DisabledBtn" AutomationProperties.AutomationId="winui-disabled-btn" Content="Disabled Control" IsEnabled="False" />
+          <Button x:Name="HiddenBtn" AutomationProperties.AutomationId="winui-hidden-btn" Content="Hidden Control" Visibility="Collapsed" />
+          <Button x:Name="UnnamedBtn" Click="OnSafeClick" Content="" Width="80" Height="32" />
+
+          <!-- Dynamically Replaced Control Container -->
+          <Border x:Name="DynamicHost" AutomationProperties.AutomationId="winui-dynamic-host" BorderThickness="1" Padding="8">
+            <Button x:Name="ReplaceBtn" AutomationProperties.AutomationId="winui-replace-btn" Content="Replace Control" Click="OnReplaceClick" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </NavigationView>
+  </Grid>
+</Window>
